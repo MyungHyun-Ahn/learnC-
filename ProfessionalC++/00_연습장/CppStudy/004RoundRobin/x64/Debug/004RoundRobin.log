@@ -1,0 +1,29 @@
+﻿  RoundRobin.cpp
+C:\Procademy\learnCpp\ProfessionalC++\00_연습장\CppStudy\004RoundRobin\RoundRobin.cpp(49,10): warning C4244: '초기화 중': '__int64'에서 'int'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+  C:\Procademy\learnCpp\ProfessionalC++\00_연습장\CppStudy\004RoundRobin\RoundRobin.cpp(49,10):
+  템플릿 인스턴스화 컨텍스트(가장 오래된 인스턴스화 컨텍스트)가
+  	C:\Procademy\learnCpp\ProfessionalC++\00_연습장\CppStudy\004RoundRobin\RoundRobin.cpp(141,22):
+  	컴파일되는 클래스 템플릿 인스턴스화 'RoundRobin<Process>'에 대한 참조를 확인하세요.
+  	C:\Procademy\learnCpp\ProfessionalC++\00_연습장\CppStudy\004RoundRobin\RoundRobin.cpp(45,1):
+  	클래스 템플릿 멤버 함수 'void RoundRobin<Process>::add(const T &)'을(를) 컴파일하는 중입니다.
+          with
+          [
+              T=Process
+          ]
+  		C:\Procademy\learnCpp\ProfessionalC++\00_연습장\CppStudy\004RoundRobin\RoundRobin.cpp(147,17):
+  		'Scheduler::Scheduler'에서 'RoundRobin<Process>::add'에 대한 첫 번째 참조를 확인하세요.
+  
+C:\Procademy\learnCpp\ProfessionalC++\00_연습장\CppStudy\004RoundRobin\RoundRobin.cpp(75,30): warning C4244: '=': '__int64'에서 'int'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+  C:\Procademy\learnCpp\ProfessionalC++\00_연습장\CppStudy\004RoundRobin\RoundRobin.cpp(75,30):
+  템플릿 인스턴스화 컨텍스트(가장 오래된 인스턴스화 컨텍스트)가
+  	C:\Procademy\learnCpp\ProfessionalC++\00_연습장\CppStudy\004RoundRobin\RoundRobin.cpp(56,1):
+  	클래스 템플릿 멤버 함수 'void RoundRobin<Process>::remove(const T &)'을(를) 컴파일하는 중입니다.
+          with
+          [
+              T=Process
+          ]
+  		C:\Procademy\learnCpp\ProfessionalC++\00_연습장\CppStudy\004RoundRobin\RoundRobin.cpp(164,19):
+  		'Scheduler::removeProcess'에서 'RoundRobin<Process>::remove'에 대한 첫 번째 참조를 확인하세요.
+  
+C:\Procademy\learnCpp\ProfessionalC++\00_연습장\CppStudy\004RoundRobin\RoundRobin.cpp(81,49): warning C4244: '=': '__int64'에서 'int'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+  004RoundRobin.vcxproj -> C:\Procademy\learnCpp\ProfessionalC++\00_연습장\CppStudy\x64\Debug\004RoundRobin.exe
