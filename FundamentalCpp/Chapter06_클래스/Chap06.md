@@ -1323,3 +1323,262 @@ int main()
 * static_cast는 상속 관계에서만 변환을 허용한다.
 
 ### 6.10.2 상속 관계 클래스 타입 변환
+~~~c++
+class CParent
+{
+public:
+	int m_Parent;
+};
+
+
+class CChild : public CParent
+{
+public:
+	int m_Child;
+};
+
+int main()
+{
+	CChild c;
+	c.m_Parent = 1;
+	c.m_Child = 2;
+
+	CParent p1 = c;									// OK
+	CParent p2 = (CParent)c;						// OK
+	CParent p3 = static_cast<CParent>(c);			// OK
+	CParent p4 = reinterpret_cast<CParent>(c);		// Error
+
+	CParent &rp1 = c;								// OK
+	CParent &rp2 = (CParent &)c;					// OK
+	CParent &rp3 = static_cast<CParent &>(c);		// OK
+	CParent &rp4 = reinterpret_cast<CParent &>(c);	// OK
+
+	CParent p;
+	p.m_Parent = 1;
+
+	CChild c1 = p;									// Error
+	CChild c2 = (CChild)p;							// Error
+	CChild c3 = static_cast<CChild>(p);				// Error
+	CChild c4 = reinterpret_cast<CChild>(p);		// Error
+
+	CChild &c1 = p;									// Error
+	CChild &c2 = (CChild &)p;						// OK
+	CChild &c3 = static_cast<CChild &>(p);			// OK
+	CChild &c4 = reinterpret_cast<CChild &>(p);		// OK
+
+	return 0;
+}
+~~~
+
+클래스 타입 변환
+* 단순 클래스 타입 변환은 자식 클래스에서 부모 클래스로 허용하지만
+* 부모 클래스에서 자식 클래스로의 변환은 허용하지 않는다.
+* reinterpret_cast는 참조, 포인터만 허용한다.
+
+메모리 구조를 보면 부모 클래스를 선언하고 자식 클래스로 변경할 경우
+* 자식 클래스의 영역은 Invalid 하기 때문에 허용하지 않는다.
+* 자식 클래스에 적절한 생성자를 정의해준다면 타입 변환이 가능할 수 있다.
+
+클래스 참조 타입의 변환
+* 부모 -> 자식 암묵적 변환을 제외하면 모두 허용해준다.
+* 타입 변환 연산자를 사용하는 경우 개발자가 책임진다는 조건하에 변환을 허용한다.
+
+정리
+* 값 타입 변환 : 임시 객체가 생성되고 대입
+* 참조 타입 변환 : 메모리 영역이 그대로 재활용
+
+
+### 6.10.3 클래스 포인터 타입 변환
+서로 상관 없는 클래스 타입 간 포인터 변환은
+* C-Style 변환과 reinterpret_cast만 허용한다.
+
+상속 관계 클래스 포인터 변환
+* 참조 타입 변환과 동일하다.
+
+### 6.10.4 클래스 포인터 타입 변환과 메모리 주소
+클래스 타입 변환을 하는 이유
+* 기본 타입에서 int -> float 변환을 하면 메모리 블록의 비트 배열 자체가 달라진다.
+* 즉, 메모리 블록의 내용을 변환될 타입에 맞게 적절하게 변형하는 것
+
+클래스 포인터의 포인터 값의 변화는 일어나지 않을 것 같지만
+* 특수한 경우에 일어난다.
+* 주로 가상 상속 혹은 다중 상속의 경우에서 발생
+
+~~~c++
+// 다중 상속의 메모리 구조
+class ParentA;
+class ParentB;
+class CChild : public ParentA, public ParentB;
+// 각각 멤버는 1개 씩 들고 있다. m_Val
+/*
+	CChild		
+	CParentA	m_Val : 4 : Address of CParentA & CChild
+	CParentB	m_Val : 4 : Address of CParentB
+				m_Val : 4 
+*/
+~~~
+
+* CChild 클래스 포인터를 CParentB 클래스 포인터로 변환할 때 주소의 변환이 일어난다.
+* reinterpret_cast의 진짜 목적은 여기에 있다.
+  * 클래스의 상속 관계에 상관없이 포인터 값을 유지하면서 포인터 타입 변환을 하는 것
+
+* CParentB -> CChild 간의 변환도 마찬가지다. - 포인터 값이 4 감소한다.
+
+
+가상 상속 타입 변환
+~~~c++
+class CParent
+{
+public:
+	int m_Parent;
+};
+
+class CChild : virtual public CParent
+{
+public:
+	int m_Child;
+};
+
+int main()
+{
+	CChild *pC = new CChild;
+
+	CParent *pP1 = pC;									// OK
+	CParent *pP2 = (CParent *)pC;						// OK
+	CParent *pP3 = static_cast<CParent *>(pC);			// OK
+	CParent *pP4 = reinterpret_cast<CParent *>(pC);		// OK
+
+	CParent *pP = new CParent;
+	CChild *pC1 = pP;									// Error
+	CChild *pC2 = (CChild *)pP;							// Error
+	CChild *pC3 = static_cast<CChild *>(pP);			// Error
+	CChild *pC4 = reinterpret_cast<CChild *>(pP);		// OK
+
+	delete pC;
+	delete pP;
+
+	/*
+	// 메모리 구조
+
+		CChild
+		CChild'		vbptr	  ---> 0
+					m_Child		   8 -> COarent의 Offset
+		CParent		m_Parent
+	
+	*/
+}
+~~~
+* CChild에서 CParent로 갈 경우 vbptr에서 offset 계산을 한 뒤 타입을 변환한다.
+* 반대의 경우 vbptr을 알 수 없기 때문에 타입 변환이 허용되지 않는다.
+* 오프셋 계산을 할 수 없기 때문
+
+가상 상속 타입 변환 불가
+~~~c++
+class CParent;
+class CChild : virtual public CParent;
+class CTest : virtual public CChild;
+
+int main()
+{
+	CTest *pt = new CTest;
+	CParent *pP - pT;
+	pP->m_Parent = 1;
+
+	CChild *pC1 = pP;
+	CChild *pC2 = (CChild *)pP;
+	CChild *pC3 = static_cast<CChild *>(pP);
+	CChild *pC4 = reinterpret<CChild *>(pP);
+
+	delete pT;
+	return 0;
+}
+
+/*
+	// 데이터 구조
+	CTest
+				vbptr   ---> 0
+				m_Test		 8	
+	CParent		m_Parent     12
+	CChild'		vbptr	---> 0
+				m_Child		 -4
+*/
+~~~
+
+* vbptr에서 찾을 수 있는 경우에만 형변환 가능
+
+일반 상속의 경우 클래스 사이의 순서와 위치가 불변이지만
+* 가상 상속의 경우 클래스 사이의 순서와 위치가 고정될 수 없다.
+
+
+단일 상속 포인터 타입 변환이 일어나는 경우
+~~~C++
+class CParent
+{
+public:
+	int m_Parent;
+};
+
+class CChild : public CParent 
+{
+public:
+	virtual ~CChild() {}
+	int m_Child;
+};
+
+int main()
+{
+	CChild *pC = new CChild;
+
+	CParent *pP1 = pC;									// 포인터 값의 변화가 일어남
+	CParent *pP2 = (CParent *)pC;						// 포인터 값의 변화가 일어남
+	CParent *pP3 = static_cast<CParent *>(pC);			// 포인터 값의 변화가 일어남
+	CParent *pP4 = reinterpret_cast<CParent *>(pC);		// 그대로
+
+	cout << "pC : " << pC << endl;
+	cout << "pP1 : " << pP1 << endl;
+	cout << "pP2 : " << pP2 << endl;
+	cout << "pP3 : " << pP3 << endl;
+	cout << "pP4 : " << pP4 << endl;
+
+
+	/*
+	// 메모리 구조
+		CChild      vfptr			---> Address of destructor
+		CParent		m_Parent
+		CChild		m_Child
+	
+	*/
+
+	return 0;
+}
+~~~
+* CParent에는 가상함수가 없고 CChild에는 있다.
+* 따라서 최상위 오프셋에는 가상함수테이블 포인터가 있다.
+* CChild에서 CParent로 형변환 하는 경우 -> 포인터 값이 변한다.
+
+
+### 6.10.5 dynamic_cast & RTTI
+dynamic_cast를 사용하기 위해서는 컴파일러에 옵션을 줘야 한다.
+* C++에 도입된지 오래되지 않았고, 고성능, 고효율의 성질과는 어울리지 않는다.
+
+dynamic_cast는 런타입 타입 정보를 사용하여 타입 변환을 하는 연산자이다.
+
+런타임 타입 정보가 바로 RTTI(Runtime Type Infomation)라는 축약어로 사용된다.
+* 즉, 실행 시간에 타입 정보를 검사하여 제대로 된 타입 변환을 수행한다.
+* 안정성은 뛰어나지만, 성능은 뒤쳐진다.
+
+
+위험한 타입 변환 허용하는 예제
+* 부모 클래스 포인터 타입에서 자식 클래스 포인터 타입으로 변환하는 코드
+* C++에서는 강제 타입 변환이나 static_cast에 대해 변환을 허용한다.
+* 애초에 CParent인 객체에서 -> CChild 객체의 함수를 호출하면 undefined behavior
+
+이래서 나온 것이 dynamic_cast
+
+
+RTTI 정보는 가상 함수 테이블에 들어간다. - C++ 컴파일러
+
+마이크로소프트에서는 바로 테이블 첫 번째 이전에 RTTI 정보를 넣기로 결정했다.
+
+
+dynamic_cast의 핵심은 변환하고자 하는 타입이 실제 어떤 타입인지를 알아내는 것에서 시작된다.
