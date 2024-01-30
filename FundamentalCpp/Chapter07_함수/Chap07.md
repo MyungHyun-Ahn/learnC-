@@ -1305,3 +1305,1271 @@ void main()
 * 위에서 본 결과 CTest t는 스택에 생성되어 있다.
 * 따라서 반환 결과를 받은 후에 즉시 사용하거나, 다른 CTest 객체로 복사해두어야 한다.
 * 실제로 스택에 생성된 객체를 참조 타입으로 반환하는 경우는 매우 드문일이다.
+
+## 7.6 가변 인자 함수
+가변 인자 함수에서 알아볼 것은 C++에서 직접 스택을 다루는 부분, 함수 사용 시 주의할 점
+
+### 7.6.1 sprintf
+대표적인 가변 인자 함수는 포맷 관련 함수
+* ex printf, sprintf
+
+~~~C++
+void main()
+{
+    char buf[128];
+    sprintf(buf, "%d %.2f %s", 1, 2.0, "Three");
+
+    cout << buf << endl;
+}
+~~~
+
+* 두 번째 인자가 바로 format, 형식을 지정하는 역할
+* 가변 인자 함수에서 볼 때는 기준 인자가 된다.
+* 기준 인자 : 가변 인자의 바로 이전 인자를 말한다.
+
+기준 인자를 스택에서 찾고, 스택을 순차적으로 검색하면서, 가변 인자들을 각각 얻을 수 있다.
+
+가변 인자란 : 인자 수가 정해지지 않은 것
+* 최소한 함수 본체에서는 몇 개의 가변 인자를 처리할 것인지 정해져야 한다.
+
+sprintf의 경우 format에서 찾을 수 있다.
+* 꼭 sprintf 처럼 전달할 필요는 없다.
+* 인자 수를 직접 인자로 넘기거나
+* 함수 본체에서 무한 반복으로 처리하다가 특정 조건에서 중단하거나
+* 결국 가변 인자 함수 본체를 어떻게 구현하느냐에 따라서 달라질 수 있다.
+
+### 7.6.2 구현
+가변 인자 함수의 형식
+~~~C++
+RETURN_TYPE FUNC_NAME(T1 arg1, T2 arg2, ---, TYPE vas, ...)
+~~~
+* 가변 인자 함수에서 가장 중요한 것은 vas와 ...이다.
+* 즉, 가변 인자가 시작되기 바로 전 기준 인자
+* vas 이후의 ... 형식이 가변 인자 함수라는 것을 지시하는 역할
+* ... 지시가 있을 경우 컴파일러는 해당 함수가 가변 인자 함수인 것을 인지하고 에러나 경고를 발생시키지 않는다.
+
+~~~C++
+#include <iostream>
+
+using namespace std;
+
+void Func(int vas, ...)
+{
+	char *arg_ptr;
+	arg_ptr = (char *)&vas; // 기준 인자인 ARG의 주소
+	arg_ptr += sizeof(void *); // 포인터의 주소만큼 이동
+
+
+	char a1 = *(char *)arg_ptr; // arg1 받아오기
+	arg_ptr += sizeof(void *);  // 포인터 만큼 이동
+
+	int a2 = *(int *)arg_ptr;   // arg2 받아오기
+	arg_ptr += sizeof(void *);  // 이동
+
+	double a3 = *(double *)arg_ptr; // 반복
+	arg_ptr += sizeof(double);
+
+	char *a4 = *(char **)arg_ptr;
+	arg_ptr += sizeof(char *);
+
+	arg_ptr = NULL;
+
+	cout << a1 << a2 << a3 << a4 << endl;
+}
+
+int main()
+{
+	char a1 = '1';
+	int a2 = 2;
+	double a3 = 3.0;
+	const char *a4 = "four";
+
+	Func(0, a1, a2, a3, a4);
+
+	return 0;
+}
+~~~
+* char a1이 1바이트지만 스택에서는 4바이트를 차지한다.
+* push, pop 기본 단위가 32비트 혹은 64비트를 사용하기 때문
+* 인자들이 순서대로 있지 않다. - 반드시 선언 순서대로 할당할 필요는 없다.
+* 컴파일러의 상황에 따라 달라진다.
+
+함수 호출 규약은 오른쪽에서부터 왼쪽으로 순서대로 스택에 추가한다.
+* 예제에서는 a4, a3, a2, a1, 0 순서대로 스택을 키워며 입력
+
+vas 인자를 기준으로 인자의 크기만큼 메모리를 옮기면 가변 인자 모두를 접근할 수 있다.
+
+arg_ptr은 가변 인자들을 가리키기 위한 포인터
+* arg_ptr을 조작하면서 가변인자에 접근
+
+함수 호출 규약에 의해서 차례대로 스택에 정렬되어 전달한다.
+* 첫 번째 인자의 주소를 구하면 순차적으로 각각의 인자를 구할 수 있다.
+* 이것으로 끝일까? - 그렇지 않다.
+* C++에서는 좀 더 쉽게 가변 인자 함수를 작성하는 매크로를 정의해두었다.
+
+매크로 활용
+~~~C++
+#include <iostream>
+#include <stdarg.h>
+
+using namespace std;
+
+void Func(int vas, ...)
+{
+	va_list arg_ptr;
+	va_start(arg_ptr, vas);
+	char a1 = va_arg(arg_ptr, char);
+	int a2 = va_arg(arg_ptr, int);
+	double a3 = va_arg(arg_ptr, double);
+	char* a4 = va_arg(arg_ptr, char *);
+	va_end(arg_ptr);
+
+	cout << a1 << a2 << a3 << a4 << endl;
+}
+
+int main()
+{
+	char a1 = '1';
+	int a2 = 2;
+	double a3 = 3.0;
+	const char *a4 = "four";
+	Func(0, a1, a2, a3, a4);
+
+	return 0;
+}
+~~~
+* 핵심 키워드 : va_list, va_start, va_arg, va_end
+* 사실 코드를 따라가보면 typedef나 define 뿐
+* 이 키워드를 사용하려면 \<stdarg.h>를 포함해야 한다.
+
+va_list
+* char*의 재정의일 뿐이다.
+* 1바이트 단위로 메모리 주소를 가감할 수 있기 때문
+
+va_start
+* arg_ptr을 첫 번째 가변 인자의 주소로 설정, 두 번째 인자로 반드시 기준인자를 넣어야 한다.
+
+va_arg
+* 두 번째 인자로 타입 자체를 넣는다.
+* 함수가 아니라 전처리 매크로이기 때문에 가능하다.
+* arg_ptr이 가리키는 스택 주소를 입력된 타입으로 변환하여 값을 얻고
+* 동시에 arg_ptr을 다음 가변 인자를 가리키도록 변경한다.
+* 타입의 크기에 따라 적절히 스택 기본 단위로 맞추는 역할
+* char, short - 4, 이상 크기인 경우 8을 더해준다는 의미
+* 즉, 스택 기본 단위의 배수가 되도록 더한다는 것
+
+va_arg가 사용하는 매크로
+~~~C++
+#define _INTSIZEOF(n)  ((sizeof(n) + sizeof(int) - 1) & ~(sizeof(int) - 1))
+~~~
+* 이 매크로를 사용할 경우 n 에 4바이트 이하인 타입을 넣으면 4가 나오고
+* 이상의 타입(클래스)를 넣을 경우 8이 나온다.
+
+
+va_end
+* 단순히 arg_ptr에 NULL(0)을 대입한다.
+
+
+### 7.6.3 문자열 클래스
+가변 인자 함수는 대부분 포맷 문자열 관련 함수이다.
+* 문자열 클래스와 밀접한 관계가 생겨날 수 밖에 없다.
+* 포맷 함수가 문자열 클래스 구조와 설계에 영향을 끼치기도 하였다.
+
+C++에서 대표적으로 사용되는 문자열 클래스라면 C++라이브러리에서 제공되는 string이 있다.
+* STL의 컨테이너처럼 취급되므로 STL string이라고도 한다.
+
+std::string을 printf와 같은 가변 인자 함수에 인자로 넘기면 런타임 에러가 발생한다.
+* 메모리 위치가 다르기 때문
+* 시작주소로 부터 4바이트가 떨어진 위치부터 실제 문자열 데이터가 담긴다.
+
+메모리 복사로 객체를 복사할 수 없는 타입일 경우 가변 인자로 넘기지 않겠다는 것
+
+### 7.6.4 클래스 타입
+char, int, double과 같은 기본 타입을 넘겨보았다.
+
+문자열 클래스도 넘겨보았으나 컴파일러에 의존성이 있음을 알 수 있었다.
+
+클래스 타입은 그럼 가변 인자로 온전히 넘길 수 있는가?
+
+~~~C++
+#include <iostream>
+#include <stdarg.h>
+
+using namespace std;
+
+class CTest
+{
+public:
+	CTest()
+	{
+		m_V = 0;
+	}
+
+	CTest(const CTest &obj)
+	{
+		m_V = obj.m_V + 1;
+	}
+
+	int m_V;
+};
+
+void CFunc(CTest arg)
+{
+	CTest t = arg;
+	cout << "CFunc : " << t.m_V << endl;
+}
+
+
+// 가변 인자로 전달될 때는 복사 생성자가 호출되지 않는다.
+// 선언 자체에 각 인자들에 대한 타입이 정의되지 않았기 때문에
+// 컴파일러는 오직 메모리 복사만 수행한다.
+void VAFunc(int vas, ...)
+{
+	va_list arg_ptr;
+	va_start(arg_ptr, vas);
+	CTest t = va_arg(arg_ptr, CTest);
+	va_end(arg_ptr);
+
+	cout << "VAFunc : " << t.m_V << endl;
+}
+
+int main()
+{
+	CTest t;
+
+	CFunc(t);
+	VAFunc(0, t);
+
+	return 0;
+}
+
+/*
+// 출력 결과
+CFunc : 2
+VAFunc : 1
+*/
+~~~
+정리하면 다음과 같다.
+* 가변 인자는 값에 의한 호출 방식으로 전달되는데
+* 복사 생성자가 호출되지는 않으며, 오직 메모리 복사만 일어난다는 것이다.
+* 따라서 클래스를 가변 인자로 전달할 경우 의도한 대로 객체를 전달하지 못할 수도 있다.
+
+### 7.6.5 스택 정리
+함수 호출 규약에서 cdecl과 stdcall의 가장 큰 차이점
+* cdecl : caller가 스택 정리, 가변 인자 함수를 만들 수 있다.
+* stdcall : callee가 스택 정리
+
+x64 Calling Convention처럼 caller가 스택을 정리하는 함수 호출 규약에서는 가변 인자 함수가 가능하다.
+
+
+~~~C++
+void main()
+{
+    printf("%d", 1);
+    printf("%d", 1, 2);         // 2
+    printf("%d", 1, 2, 3);      // 3
+}
+~~~
+
+* 2, 3이 잘못된 코드 같지만 컴파일 에러는 발생하지 않는다.
+* printf가 format 만을 판단해서 스택을 정리한다면 2,3의 경우 시스템 자체가 멈출 것이다.
+* 그러나 caller인 main 함수는 인자를 몇 개 넣었는지 알고 있기 때문에 적절히 스택을 정리할 수 있다.
+* 즉, 가변 인자 함수의 스택 정리는 오직 caller만이 할 수 있다.
+
+## 7.7 클래스 멤버 함수
+C++ 클래스의 멤버 함수는 말 그대로 클래스의 멤버이자 함수이다.
+* 즉, 클래스 멤버로서의 속성과 일반 함수의 성질도 그대로 가지고 있는 것
+
+### 7.7.1 멤버 함수 위치
+멤버 함수는 클래스 멤버 객체의 메모리 영역에 포함되는 것이 아니다.
+* 다른 함수와 마찬가지로 함수 코드 영역에 있을 뿐
+* 클래스 멤버 함수이기 때문에 지정된 범위 안에서 호출될 수 있다는 차이가 있다.
+
+### 7.7.2 thiscall
+32비트 x86 호출 규약 중 멤버 함수를 위한 호출 규약이 따로 있다.
+* thiscall : 이름에서 보이듯 멤버 함수의 필수 인자인 this를 넘기는 규칙 포함
+* x64의 통합 함수 호출 규약에는 thiscall의 내용이 포함되어 있다.
+
+비정적 멤버 함수에 대해서는 기본적으로 thiscall이 지정된다.
+* 물론 다른 함수 호출 규약 또한 지정할 수 있다.
+
+thiscall
+~~~C++
+class CTest
+{
+public:
+	void Func_thiscall() {}
+	void __cdecl Func_cdecl() {}
+	void __stdcall Func_stdcall() {}
+};
+
+int main()
+{
+	CTest t;
+
+	t.Func_thiscall();
+	/*
+	lea		ecx, [t]				; ecx = &t
+	call	CTest::Func_thiscall
+	*/
+
+	t.Func_cdecl();
+	/*
+	lea		eax, [t]
+	push	eax						; push &t
+	call	CTest::Func_cdecl
+	add		esp, 4
+	*/
+
+	t.Func_stdcall();
+	/*
+	lea		eax, [t]
+	push	eax						; push &t
+	call	CTest::Func_stdcall
+	*/
+
+	return 0;
+}
+~~~
+* 비정적 멤버 함수에 대해서 각각의 함수 호출 규약을 강제로 지정한 것이다.
+* x86에서만 의미가 있으며, x64에서는 무시된다.
+
+특별한 지정이 없는 경우 : thiscall
+* thiscall 또한 stdcall과 마찬가지로 callee가 스택을 정리할 책임을 가진다.
+* thiscall은 ecx혹은 rcx 레지스터를 이용하여 this를 넘기는 것이 일반적
+
+그에 반해 cdecl과 stdcall이 지정될 수 있다.
+* cdecl에서는 레지스터가 아닌 스택을 이용하여 this를 전달한다.
+
+### 7.7.3 this
+this는 비정적 멤버 함수 자신이 어떤 객체로부터 호출되었는지를 알려주는 지시자 역할을 한다.
+* this는 해당 객체의 주소를 나타내는 일종의 포인터
+
+this 키워드가 보이지 않는다고 해서 컴파일러가 ecx 레지스터를 통해 객체의 주소를 전달하지 않아도 되는 것은 아니다.
+* 컴파일러가 전달한 ecx 레지스터를 통해서 멤버 함수에서 클래스의 다른 멤버에 접근할 수 있기 때문
+
+만일 비정적 멤버 함수에서 클래스의 다른 멤버에 접근하지 않는다면 객체의 주소 자체가 불필요하다는 것
+* 즉, 객체의 주소가 잘못되어도 아무 문제가 없다는 것
+
+~~~C++
+#include <iostream>
+
+using namespace std;
+
+class CTest
+{
+public:
+	void Func() {}
+	void Func1() 
+	{
+		Func();
+		cout << this << endl;
+	}
+
+	void Func2()
+	{
+		Func();
+		cout << this << m_Value << endl; // runtime error
+	}
+
+	int m_Value;
+};
+
+
+int main()
+{
+	CTest *pT = NULL;
+
+	pT->Func1();
+	pT->Func2();
+
+	return 0;
+}
+~~~
+* 많은 개발자들이 잘못된 객체에 대해서 멤버 함수를 호출할 경우 그 즉시 런타임 에러가 발생한다고 생각
+* 정확히 런타임 에러는 오직 잘못된 멤버 객체에 접근할 때 발생하는 것이다.
+
+Func2() 에서 NULL 포인터의 m_Value에 접근할 때 해당 영역이 보호 영역이기 때문에 접근 자체로만으로 예외가 발생하는 것
+
+운이 좋다면 this가 잘못된 주소라도 m_Value의 오프셋 위치가 접근 가능한 영역이라면 예외가 발생하지 않고 넘어갈 수도 있다.
+* 그로 인해 버그를 찾기 정말 어려워진다.
+
+잘못된 this와 가상 함수
+~~~C++
+class CTest
+{
+public:
+    virtual void Func() {}
+};
+
+void main()
+{
+    CTest *pT = NULL;
+    pT->Func();     // Runtime Error
+}
+~~~
+* 존재하지도 않는 vfptr를 참조하여 런타임 에러
+
+정적 멤버 함수와 this
+~~~C++
+class CTest
+{
+public:
+    static void Func()
+    {
+        cout << this << endl; // Compile Error
+    }
+};
+~~~
+* 애초에 컴파일 자체가 되지 않는다.
+* this를 사용할 수 없기 때문에
+* staic과 virtual 키워드는 절대로 양립할 수 없다.
+
+
+### 7.7.4 이름 탐색 규칙
+C++에서 제일 중요한 특징은 바로 중복 정의와 재정의
+* 컴파일러는 어떤 기준에 의해 함수를 탐색할까?
+
+유효 범위를 기준으로 탐색
+* 전역 함수의 유효 범위 : 전체
+* 멤버 함수의 경우 : 클래스 - 각각의 클래스는 그 자체가 유효 범위
+* 부모 클래스와 자식 클래스가 있는 경우 : 부모 클래스의 유효 범위는 자식 클래스를 포함한다.
+
+### 7.7.5 const 멤버 함수
+const가 지정된 객체(변수)는 변경될 수 없다. 컴파일러는 const 객체에 대해서 상태를 변경시키는 코드에 대해서 컴파일을 거부한다.
+
+
+~~~C++
+class CTest
+{
+public:
+    CTest()
+    {
+        m_Val = 0;
+    }
+
+    void Set(int arg)
+    {
+        m_Val = arg;
+    }
+
+    void Func() { }
+
+    int m_Val;
+};
+
+void main()
+{
+    const CTest t;
+    t.Set();        // Error
+    t.Func();       // Error
+}
+~~~
+* const 객체는 일반 멤버 함수를 호출할 수 없다.
+* const 객체가 호출할 수 있는 멤버 함수를 제공하는데 그것이 바로 const 멤버 함수
+
+const 멤버 함수를 만드는 방법
+* 멤버 함수를 선언 및 정의할 경우 함수 인자 정의가 끝나는 곳에 const를 붙인다.
+
+~~~C++
+class CTest
+{
+public:
+    CTest()
+    {
+        m_Val = 0;
+    }
+
+    void Set(int arg) const
+    {
+        m_Val = arg;       // Error
+    }
+
+    void Func() const { }
+
+    int m_Val;
+};
+
+void main()
+{
+    const CTest ct;
+    ct.Func();
+
+    CTest t;
+    t.Func();
+}
+~~~
+* const 객체가 아닌 경우에도 const 멤버 함수를 호출할 수 있다.
+* const 멤버 함수 내에서 멤버 변수를 변경하면 에러가 발생한다.
+
+
+const 멤버 함수 - 허용되지 않는 구문
+~~~C++
+class CTest
+{
+public:
+    CTest()
+    {
+        m_Val = 0;
+    }
+
+    void Func() {}
+
+    void Func1() const
+    {
+        Func();         // Error
+    }
+
+    CTest &Func2() const
+    {
+        return *this;   // Error
+    }
+
+    CTest *Func3() const
+    {
+        return this;    // Error
+    }
+
+    const CTest &Func4() const
+    {
+        return *this;   // OK
+    }
+
+    const CTest *Func5() const
+    {
+        return this;    // OK
+    }
+
+    int m_Val;
+};
+~~~
+* const 멤버 함수는 객체를 변경시키는 일체의 코드도 허용하지 않는다.
+* 조금이라도 낌새가 보이면 컴파일 에러
+
+안되는 경우
+1. const 멤버 함수 내부에서 비 const 멤버 함수를 호출할 수 없다.
+2. 객체 자신 혹은 포인터를 반환 받을 수 없다. - 받은 측에서 변경할 수 있기 때문에
+3. 따라서 const 객체 혹은 포인터를 반환해야 한다.
+
+
+const 멤버 함수 - const 필요 이유
+~~~C++
+class CParent
+{
+public:
+	CParent()
+	{
+		m_Val = 0;
+	}
+
+	virtual void VFunc() // A
+	{
+		m_Val = 1;
+	}
+
+	int m_Val;
+};
+
+class CChild : public CParent
+{
+	virtual void VFunc() // B
+	{
+
+	}
+}
+
+void main()
+{
+	const CChild c;
+	const CParent *pP = &c;
+	pP->VFunc();
+}
+~~~
+* 위 코드는 실제로는 에러가 발생하지만 컴파일 가능하다고 가정
+* virtual 함수의 경우 컴파일러는 컴파일 시점에 어떤 함수가 실행될지 알 수 없다.
+* const 지정이 없을 경우 컴파일러가 함수를 분석하는 것만으로는 한계가 있으므로, 어쩔 수 없이 const 지정자를 쓸 수밖에 없다.
+
+참고로, const 멤버 함수는 비 const 멤버 함수와 완전히 다른 함수로 취급된다.
+* 인자 타입, 반환 타입이 모두 같아도 const의 유무로 서로 다른 함수로 구분
+* 결국 const가 함수의 시그니처에 포함
+
+const 멤버 함수 - 우선 순위
+~~~C++
+class CTest
+{
+public:
+	void Func()
+	{
+		cout << "Non Const Function" << endl;
+	}
+
+	void Func() const
+	{
+		cout << "Const Function" << endl;
+	}
+};
+
+void main()
+{
+	CTest t;
+	t.Func();
+
+	const CTest ct;
+	ct.Func();
+}
+~~~
+* 같은 이름의 Func가 비 const와 const로 함께 존재
+* 즉, const의 여부로 중복 정의가 가능함
+* 비 const 객체의 경우 비 const 함수를 우선 선택
+* const 객체의 경우 const 함수를 선택
+
+
+const 멤버 함수는 STL에서 많이 사용된다.
+
+STL map의 경우
+~~~C++
+class CTest
+{
+public:
+	BOOL operator < (const CTest &rhs) const
+	{
+		return m_Val < rhs.m_Val;
+	}
+
+	int m_Val;
+};
+
+void main()
+{
+	std::map<CTest, CTest*> test_map;
+
+	CTest t;
+	test_map[t] = &t;	// Error
+}
+~~~
+* 위 코드는 에러가 발생한다.
+* 템플릿 인수를 const CTest에서 추론할 수 없습니다.
+* 간단히 STL map은 트리 구조를 사용한다.
+* 트리가 구성될 때는 키의 대소 비교가 필요하다.
+* 즉, 키 객체에 대해서 연산자 < 가 정의되어야만 한다.
+* operator에서 const가 생략되면 컴파일 에러가 발생한다.
+
+왜 const가 필요할까?
+* STL map에서 const 객체에 operator < 를 호출하기 때문
+* STL 컨테이너는 대부분 내부에서 const 객체를 기준으로 함수를 호출한다.
+* 따라서 STL에 호환될 수 있는 클래스 작성시에는 const 멤버 함수가 필수이다.
+
+const 멤버 함수 정리
+* const 클래스 객체는 절대 멤버가 변경되면 안된다.
+* 따라서 const 멤버 함수만을 호출 가능하며
+* const 멤버 함수 내에서 멤버가 변경되는 코드 작성 시 컴파일 에러
+* const 키워드는 가상 함수로 인해 반드시 필요
+* STL 호환 클래스 작성시에는 const 멤버 함수를 필수로 구현해야 하는 경우있음
+
+
+## 7.8 함수 객체(Functor)
+함수는 아니지만 함수처럼 사용할 수 있는 클래스
+* 함수 객체 혹은 functor
+
+핵심은 opertor()를 재정의하는데 있다.
+
+### 7.8.1 구현
+~~~C++
+#include <iostream>
+
+using namespace std;
+
+class CFunctor
+{
+public:
+	CFunctor()
+	{
+		m_Sum = 0;
+	}
+
+	int operator() (int arg)
+	{
+		m_Sum += arg;
+		return m_Sum;
+	}
+
+	int m_Sum;
+};
+
+void main()
+{
+	int array[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+
+	CFunctor f;
+	for (int i = 0; i < 10; i++)
+	{
+		f(array[i]);
+	}
+
+	cout << f.m_Sum << endl;
+}
+~~~
+* 함수 객체는 클래스이기 때문에 자기 자신의 정보를 보관할 수 있다.
+* 물론 함수 내에 정적 지역 변수를 사용할 순 있다.
+* 그러나 1~10, 11~20 까지의 합을 각각 구하려면 어떻게 할까?
+* 함수 객체는 단순히 객체를 2개 만들면 된다.
+
+
+### 7.8.2 for_each
+for_each는 STL에 도입된 반복문이다.
+* 템플릿 기반으로 내부에서는 for문을 사용하고 있다.
+* 물론 for_each 구현은 컴파일러 제작사마다 다를 수 있다.
+
+함수 객체는 for_each와 STL에 잘 어울린다.
+
+
+for_each 구현
+~~~C++
+template<typename Iterator, typename Functor>
+inline Functor for_each(Iterator first, Iterator last, Functor func)
+{
+	for (; first != last; ++first)
+	{
+		func(*first);
+	}
+
+	return (func);
+}
+~~~
+* for_each 문은 내부적으로 for 구문을 사용한다.
+* 그리고 for문 안에서 func를 호출하도록 되어있는데
+* Functor는 실제로 함수 객체 뿐만 아니라 함수 포인터도 될 수 있다.
+* for_each는 반복문이라 하지만 실제로는 반복을 수행하는 함수이다.
+* 반환 값은 실제로 for문에서 사용된 함수 객체 혹은 함수 포인터인 func이다.
+
+~~~C++
+#include <iostream>
+
+using namespace std;
+
+class CFunctor
+{
+public:
+	CFunctor()
+	{
+		m_Sum = 0;
+	}
+
+	int operator() (int arg)
+	{
+		m_Sum += arg;
+		return m_Sum;
+	}
+
+	int m_Sum;
+};
+
+void main()
+{
+	int array[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }; 
+
+	CFunctor f;
+	cout << for_each(&array[0], &array[10], f).m_Sum << endl;
+}
+~~~
+
+* for_each의 반환 값이 함수 객체이므로 m_Sum에 바로 접근 가능하다.
+
+## 7.9 람다(Lambda)
+람다를 간단히 말하자면 '이름 없는 함수'라고 할 수 있다.
+
+람다의 구조와 원리, std::function의 구현 원리도 살펴볼 것이다.
+
+### 7.9.1 람다 기본
+~~~C++
+void main()
+{
+	int x = 1;
+
+	cout << [x](int arg)->int{ return x + arg; } (10) << endl;
+}
+~~~
+* 람다는 대괄호 []로 시작된다. [x]처럼 main의 지역변수 x가 쓰여있는데.
+* 변수를 캡쳐한다. 라고 말한다. - 즉, 외부 변수를 캡쳐하는 기능 수행
+* 괄호()는 일반 함수처럼 (parameter)를 정의한다.
+* 화살표 -> 는 반환 타입을 나타낸다.
+* 블록 {}은 함수 본체를 정의하는 부분이다.
+* 블록 끝에 (10)을 붙인 것은 arg에 10을 인자로 넘기면서 람다를 호출한다는 것이다.
+
+기존 함수와의 가장 큰 차이점은 이름이 없다는 것
+* 일회적인 성격이 강하기 때문
+
+람다는 보통의 함수가 아니기 때문에 함수처럼 정의할 수 없다.
+* 전역적으로 람다를 정의하면 컴파일 에러
+* 람다는 함수 안에서만 정의될 수 있다.
+* 람다 정의는 하나의 식이거나 식의 일부로 간주되기 때문에 식이 끝나는 곳에 ;를 붙여야 한다.
+
+### 7.9.2 람다 문법
+~~~C++
+[Capture_Variables] (Parameters)->Return_Type { Body };
+~~~
+* 위의 식에서 가장 특이한 부분은 바로 Capture_Variables이다.
+* 일반적으로 함수의 본체에서 전역 변수와 지역 변수를 사용할 수 있다.
+* 람다에서는 추가적으로 외부 변수를 사용할 수 있다.
+* 외부 변수 : 람다가 정의된 함수의 지역변수
+* 캡쳐를 통해서 외부 변수의 속성을 지정할 수 있다. - 값 변수, 참조 변수
+* Capture_Variables는 외부 변수의 값, 참조 여부를 결정한다.
+* Capture_Variables에 의해 지정된 외부 변수는 람다 본체에 인자처럼 전달되어 지역 변수로 사용된다.
+
+Capture_Variables
+~~~C++
+void main()
+{
+	int x1 = 100;
+	int x2 = 10;
+	int x3 = 1;
+
+	// 모두 값 변수로 지정
+	int R1 = [=]()->int{ return x1 + x2 + x3; }();
+
+	// 모두 참조 변수로 지정
+	int R2 = [&]()->int{ return x1 + x2 + x3; }();
+
+	// x1만 참조 나머지 모두 값 변수로 지정
+	int R3 = [=, &x1]()->int{ return x1 + x2 + x3; }();
+
+	// x1만 값 나머지 모두 참조 변수로 지정
+	int R4 = [&, x1]()->int{ return x1 + x2 + x3; }();
+}
+~~~
+
+
+### 7.9.3 람다 중복
+람다 본체에서 또 다른 람다를 정의할 수 있다.
+~~~C++
+void main()
+{
+	int x = 100;
+
+	return [x] (int arg1) -> int
+			{
+				return [x, arg1] (int arg2) -> int
+					{
+						return x + arg1 + arg2;
+					} (1);
+			} (10);
+}
+~~~
+
+### 7.9.4 멤버 함수와 람다
+클래스의 멤버 함수에서도 람다를 정의하고 사용할 수 있다.
+~~~C++
+class CTest
+{
+public:
+	int m_Value;
+	int Func()
+	{
+		return [=](int arg) -> int
+				{
+					return m_Value + arg;
+				} (1);
+	}
+}
+
+void main()
+{
+	CTest t;
+	t.m_Value = 10;
+	cout << t.Func() << endl;
+}
+~~~
+* 람다 본체에서 사용할 수 있는 변수는 전역, 지역, 외부 변수 뿐이다.
+* m_Value는 무엇일까?
+* 정답은 바로 this이다. - 지역 변수
+
+Capture_Variables [=]
+* 이것을 풀어쓰면 [this]가 된다.
+* this가 멤버 함수 Func의 지역변수이기 때문에 람다 입장에서는 외부 변수가 되는 것이다.
+* this는 상수 포인터 변수이기 때문에 값 변수로만 지정될 수 있다.
+
+멤버 함수에서도 람다를 중복해서 사용할 수 있다.
+
+
+### 7.9.5 람다 구조
+람다는 컴파일러에 의해 처리되는 새로운 문법이지만 어셈블리를 살펴보면 함수 객체(Functor)와 비슷한 면을 찾을 수 있다.
+
+~~~C++
+#include <iostream>
+
+using namespace std;
+
+class CLambda
+{
+public:
+	CLambda(int &vx, int &rx) : _vx(vx), _rx(rx) {}
+
+	int operator()(int arg)
+	{
+		_rx = 10;
+		return _vx + _rx + arg;
+	}
+
+	const int _vx;
+	int &_rx;
+};
+
+void main()
+{
+	int vx = 100;
+	int rx = 0;
+
+	/*
+	 push        1
+	 lea         eax,[rx]
+	 push        eax
+	 lea         ecx,[vx]
+	 push        ecx
+	 lea         ecx,[ebp-110h]
+	 call        `main'::`2'::<lambda_1>::<lambda_1> (0F91870h)		; 클래스 생성자랑 비슷한 느낌
+	 mov         ecx,eax
+	 call        `main'::`2'::<lambda_1>::operator() (0F91950h)		; operator() 호출
+	 mov         dword ptr [R1],eax
+	*/
+	int R1 = [vx, &rx](int arg) -> int // 람다 캡처 부분 - 클래스 생성자의 초기화 리스트와 똑같이 동작
+		{	// operator() 재정의
+			rx = 10;
+			return vx + rx + arg;
+		} (1);
+
+	/*
+	 lea         eax,[rx]
+	 push        eax
+	 lea         ecx,[vx]
+	 push        ecx
+	 lea         ecx,[lambda]
+	 call        CLambda::CLambda (0FB13BBh)
+	*/
+	CLambda lambda(vx, rx);
+	/*
+	 push        1
+	 lea         ecx,[lambda]
+	 call        CLambda::operator() (0FB10FFh)
+	 mov         dword ptr [R2],eax
+	*/
+	int R2 = lambda(1);
+
+	cout << R1 << endl;
+	cout << R2 << endl;
+}
+~~~
+* 클래스 함수 객체와 람다는 동일하게 동작한다.
+* 람다 캡처 부분에서 생성자의 초기화 리스트 처럼 동작하고
+* 함수의 본체 부분에서 operator()를 오버로딩 하는 것
+* 실제로 람다는 하나의 함수 객체처럼 취급되기 때문에 저장할 수 있고
+* 인자처럼 전송할 수 있다.
+
+### 7.9.6 람다 저장
+람다는 하나의 객체이다.
+* operator()가 단 하나만 재정의된 이름 없는 함수 객체
+* 따라서 변수에 저장도 할 수 있지만 복제도 가능하다는 것을 의미한다.
+* (함수는 함수 포인터에 저장할 순 있지만 복제는 어렵다.)
+
+함수의 저장
+~~~C++
+int Func(int arg)
+{
+	return arg;
+}
+
+void main()
+{
+	int (*pFunc1)(int); // 1
+	pFunc1 = &Func;
+	int R1 = pFunc1(1);
+
+	typedef int (*PFUNC)(int); // 2
+	PFUNC pFunc2 = &Func;
+	int R2 = pFunc2(1);
+
+	auto pFunc3 = &Func; // 3
+	int R3 = pFunc3(1);
+}
+~~~
+Func를 저장하기 위한 변수를 만드는 방법 2가지
+* 1번 처럼 함수 포인터 타입 변수 만들기
+* 2번 처럼 typedef를 이용하여 함수 포인터 타입 정의
+* 두 방법의 공통점은 바로 이름이 필요하다는 것
+* 그런데 람다는 이름이 없으므로 위 2가지 방법이 불가능하다.
+
+C++11에 도입된 auto 키워드
+* auto는 알아서 대입될 객체의 타입으로 변신
+* 따라서 함수를 저장하는 것도 간단하다.
+
+
+auto로 람다 저장하기
+~~~C++
+auto lambda = [] (char *str) { cout << str << endl; };
+
+void main()
+{
+	lambda("Hello World!");
+}
+~~~
+
+람다를 전역 변수 lambda에 저장하는 예제
+* 왜 전역 스코프에서 정의가 될까?
+* 사실 람다의 저장은 프로세스 시작 시 호출되는 CRT Startup 함수에서 이뤄진다.
+* 반환 타입이 void일 경우 ->void를 생략 가능하다.
+
+람다 저장 2
+~~~C++
+void main()
+{
+	int x = 10;
+	int y = 1;
+
+	auto lambda = [x, &y] () -> int
+			{
+				return x + y;
+			};
+	
+	int R1 = lambda();
+
+	x = 20;	// 적용 안됨
+	y = 2;	// 적용됨
+
+	int R2 = lambda();
+
+	cout << R1 << endl;
+	cout << R2 << endl;
+}
+~~~
+* 지역 변수를 변경하면 적용이 안되는 이유
+* 값 변수는 람다의 초기화에서 이뤄진다.
+* 참조 변수는 변경이 가능하다.
+
+람다를 저장할 수는 있게 되었지만, 아직 미흡하다.
+* 외부 변수를 캡쳐하는 람다의 경우 전역 변수나 멤버 변수에 저장할 수 없기 때문
+
+전역 변수 람다 저장 안되는 예제
+~~~C++
+auto g_Lambda; // Complie Error
+
+void Func()
+{
+	int x = 10;
+	g_Lambda = [x] () -> int { return x; };
+}
+
+void main()
+{
+	Func();
+	cout << g_Lambda() << endl;
+}
+~~~
+* auto 키워드는 오직 초기화될 때 대입되는 객체의 타입으로 변경되기 때문에 컴파일 에러
+* 따라서 초기화 없이는 auto 변수를 사용할 수 없다.
+
+결국 함수 안에서 정의된 람다를 저장할 방법은 오직 해당 함수에서 선언된 auto 변수를 사용하는 것뿐
+
+람다를 전역 변수에 영구적으로 저장하여 어떤 함수에서도 사용할 수 있는 방법
+* STL의 std::function
+
+std::function 람다 저장
+~~~C++
+#include <iostream>
+#include <functional>
+
+using namespace std;
+
+// std::function을 사용하면 전역 변수에 람다 저장 가능
+std::function<int(int)> g_Lambda;
+
+void Func()
+{
+	int vx = 100;
+	int rx = 10;
+
+	g_Lambda = [vx, &rx](int arg) -> int
+		{
+			return vx + rx + arg;
+		};
+}
+
+void main()
+{
+	Func();
+
+	cout << g_Lambda(1) << endl;
+}
+~~~
+* STL의 std::function을 사용하려면 \<functional> 헤더를 포함해야 한다.
+* std::function 객체를 생성할 때는 템플릿 인자로 람다 함수의 시그니처를 입력 int 타입 인자를 하나 받아서 int 타입을 반환하므로 int(int)
+
+### 7.9.7 람다 저장 클래스
+람다 저장 클래스를 만들기 전 알아야 할 것
+* 템플릿 사용 방법
+* 템플릿 가변 인자 (옛날에는 0개, 1개, 2개 각각 전부 구현했다.)
+
+
+람다를 저장하기 위해서는 람다의 타입을 반드시 구해야 한다. - 템플릿
+
+~~~C++
+template<typename LAMBDA>
+void Func(LAMBDA arg)
+{
+	LAMBDA lambda = arg;
+	lambda(1);
+}
+
+void main()
+{
+	Func([] (int arg) { cout << arg << endl; });
+}
+~~~
+* auto 처럼 LAMBDA 타입은 실제 대입된 람다의 타입이 된다.
+* 또한 람다는 결국 함수와 같으므로, 즉 인자와 반환 타입이 있다.
+* 시그니처 또한 타입으로 받아들여 처리해야 한다.
+
+RETURN_TYPE(ARG_TYPE1, ARG_TYPE2, ... );
+* 예를 들어 double 타입 인자 둘을 받아 int를 반환하는 함수 시그니처
+* int(double, double)
+
+템플릿 가변 인자를 사용하는 방법
+~~~C++
+int Func(double a, double b)
+{
+	return (int) (a + b);
+}
+
+template<typename RT, typename ...ATs>
+RT TFunc(ATs... args)
+{
+	return Func(arg...);
+}
+
+void main()
+{
+	int R = TFunc<int, double, double>(3.2, 3.8);
+}
+~~~
+* ...ATs : typename이 가변 개수만큼 있다는 것
+
+람다 저장 클래스
+~~~C++
+// 람다 인터페이스
+template<typename RT, typename... ATs>
+class CLambdaInterface
+{
+public:
+	RT Call(ATs... args)
+	{
+		return _Call(args...);
+	}
+
+	virtual RT _Call(ATs... args) = 0; // 내부 가상 함수
+};
+
+
+// 람다를 실제로 저장하는 클래스이기 때문에 LAMBDA 타입이 반드시 필요하다.
+template<typename LAMBDA, typename RT, typename... ATs>
+class CLambda : public CLambdaInterface<RT, ATs...>
+{
+public:
+	CLambda(const LAMBDA &lambda)
+	{
+		m_pLambda = new LAMBDA(lambda);
+	}
+
+	~CLambda()
+	{
+		if (m_pLambda)
+		{
+			delete m_pLambda;
+		}
+	}
+
+	virtual RT _Call(ATs... args)
+	{
+		return (*m_pLambda)(args...);
+	}
+	
+	LAMBDA *m_pLambda;
+};
+
+
+template<typename T>
+class CFunction; // CFunction<T> 전방 선언
+
+// CFunction을 정의하는 시점에 전달할 수 있는 템플릿 인자는 오직 함수의 시그니처 뿐
+template<typename RT, typename... ATs>
+class CFunction<RT(ATs...)>
+{
+public:
+	CFunction()
+	{
+		m_pLambdaInterface = NULL;
+	}
+
+	template<typename LAMBDA>
+	CFunction(const LAMBDA &lambda) // 람다의 타입이 알려지는 순간
+	{
+		m_pLambdaInterface = new CLambda<LAMBDA, RT, ATs...>(lambda);
+	}
+
+	template<typename LAMBDA>
+	CFunction<RT(ATs...)> &operator=(const LAMBDA &lambda) // 람다의 타입이 알려지는 순간
+	{
+		if (m_pLambdaInterface)
+		{
+			delete m_pLambdaInterface;
+		}
+
+		m_pLambdaInterface = new CLambda<LAMBDA, RT, ATs...>(lambda);
+		return *this;
+	}
+
+	RT operator() (ATs... args) // 결국 CFunction 객체는 Functor가 된다.
+	{
+		return m_pLambdaInterface->Call(args...);
+	}
+
+	// CLambda의 부모 클래스이므로 자식 객체의 포인터를 대신할 수 있기 때문
+	CLambdaInterface<RT, ATs...> *m_pLambdaInterface;
+};
+~~~
+
+사용 코드
+~~~C++
+#include <iostream>
+#include "CFunction.h"
+
+using namespace std;
+
+CFunction<double(int, int)> lambda;		// Lambda Object
+CFunction<double(int, int)> func;		// Function Object
+
+double Divide(int a, int b)
+{
+	if (b != 0)
+	{
+		return (double)a / b;
+	}
+
+	return 0;
+}
+
+int main()
+{
+	double vx = 0.3;
+	double rx = 0;
+
+	lambda = [vx, &rx](int a, int b) -> double
+		{
+			rx = 0.4;
+			return vx + rx + a + b;
+		};
+
+	func = &Divide;
+	cout << lambda(1, 2) << endl;
+	cout << func(1, 2) << endl;
+
+	return 0;
+}
+~~~
