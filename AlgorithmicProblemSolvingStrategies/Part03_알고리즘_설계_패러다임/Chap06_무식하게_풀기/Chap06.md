@@ -179,3 +179,101 @@ bool hasWord(int y, int x, const string& word)
 원래 문제의 '부분 문제'
 * 문제의 일부
 * 문제의 한 조각
+
+## 6.3 문제: 소풍 (문제 ID: PICNIC, 난이도: 하)
+
+문제 링크
+* https://www.algospot.com/judge/problem/read/PICNIC
+
+## 6.4 풀이: 소풍
+### 완전 탐색
+가장 간단한 방법
+* 완전 탐색을 이용해 조합을 모두 만들어 보는 것
+
+재귀 호출을 이용해 문제를 해결
+* 각 답을 만드는 과정을 여러 개의 조각으로 나누어야 함
+* 전체 문제를 n/2로 나누어 한 조각마다 두 학생을 짝지어주는 것으로 함
+
+이때 문제의 형태
+* 아직 짝을 찾지 못한 학생들의 명단이 주어질 때 친구끼리 둘씩 짝짓는 경우의 수를 계산하라
+
+### 중복으로 세는 문제
+위 아이디어를 그대로 코드로 옮긴 것
+```C++
+int n;
+bool areFriends[10][10];
+
+// taken[i] = i번째 학생이 짝을 이미 찾았으면 true, 아니면 false
+int countPairings(bool taken[10])
+{
+    // 기저 사례: 모든 학생이 짝을 찾았으면 한 가지 방법을 찾았으니 종료한다.
+    bool finished = true;
+    for (int i = 0; i < n; ++i)
+        if (!taken[i])
+            finished = false;
+
+    if (finished)
+        return 1;
+
+    int ret = 0;
+    // 서로 친구인 두 학생을 찾아 짝을 지어 준다.
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < n; ++j)
+            if (!taken[i] && !taken[j] && areFriends[i][j])
+            {
+                taken[i] = taken[j] = true;
+                ret += countPairings(taken);
+                taken[i] = taken[j] = false;
+            }
+    return ret;
+}
+```
+
+코드에 두 가지 문제점이 있다.
+* 같은 학생 쌍을 두 번 짝지어 준다.
+* 다른 순서로 학생들을 짝지어 주는 것을 서로 다른 경우로 세고 있다.
+
+해결법
+1. 같은 답 중 사전순으로 먼저 오는 답 하나만을 센다.
+2. 항상 번호가 가장 빠른 학생부터 짝을 짓기 때문에 위 두 가지 문제점 모두 해결된다.
+
+문제를 해결한 재귀 호출 코드
+```C++
+int n;
+bool areFriends[10][10];
+
+// taken[i] = i번째 학생이 짝을 이미 찾았으면 true, 아니면 false
+int countPairings(bool taken[10])
+{
+    // 남은 학생들 중 가장 번호가 빠른 학생을 찾는다.
+    int firstFree = -1;
+
+    for (int i = 0; i < n; ++i)
+    {
+        if (!taken[i])
+        {
+            firstFree = i;
+            break;
+        }
+    }
+
+    // 기저 사례: 모든 학생이 짝을 찾았으면 한 가지 방법을 찾았으니 종료한다.
+    if (firstFree == -1)
+        return 1;
+
+    int ret = 0;
+    // 이 학생과 짝지을 학생을 결정한다.
+    for (int pairWith = firstFree + 1; pairWith < n; ++pairWith)
+        if (!taken[pairWith] && !taken[firstFree] && areFriends[firstFree][pairWith])
+        {
+            taken[firstFree] = taken[pairWith] = true;
+            ret += countPairings(taken);
+            taken[firstFree] = taken[pairWith] = false;
+        }
+    return ret;
+}
+```
+
+### 답의 수 상한
+재귀 호출 알고리즘은 답의 수에 정비례 하는 시간을 가짐
+* 이 문제에서 가장 많은 답을 가질 수 있는 입력은 열 명의 학생이 모두 서로 친구인 경우
